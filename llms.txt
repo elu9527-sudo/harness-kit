@@ -1,0 +1,32 @@
+# harness-kit
+
+> 给 AI 编码流水线（教练出卡判卡 / 编码 agent 执行 / 人做中继与签字）的账本式安全网：
+> append-only 哈希链账本是唯一事实源，agent 无法自证完成，只有人能签不可逆动作，
+> 结构红线只提示不阻断。零外部依赖，Windows + PowerShell 7 + Node。
+
+Key facts:
+
+- 事实源：`events.jsonl`，append-only，每行带 `seq` / `prev` / `self` 三个哈希字段；改一条断链即被发现
+- 派生：状态、注意力、审计、下一步做什么，全部从账本算；agent 不许声明 `done: true` / `verified: true`
+- 签名：只有人能签三件事——把一步写进计划（stage-add）、L2/L3 步骤放行（sign-gate）、最终封锚（seal）
+- 不阻断：结构红线（文件 ≤400 行 / 函数 ≤60 行 / 嵌套 ≤4 层）是报告不是闸门，退出码恒 0，每类明细封顶 8 条
+- 环境：Windows + PowerShell 7 + Node；单用户单机；同版本逐字节可复现（MANIFEST 钉死 sha256）
+- 案例：1334 条实账、6 轮独立观测、若干事故复盘，见 examples/
+- 许可：MIT，附署名请求
+
+## Docs
+
+- [README](https://github.com/elu9527-sudo/harness-kit/blob/main/README.md)：概览、三条核心主张、FAQ、术语表、与其他项目的对比
+- [ARCHITECTURE.md](https://github.com/elu9527-sudo/harness-kit/blob/main/ARCHITECTURE.md)：完整设计说明——为什么这样切、每条规则的来历、被删掉的设计和原因
+- [kit/README.md](https://github.com/elu9527-sudo/harness-kit/blob/main/kit/README.md)：包内容、复现性三层承诺、明确限制
+- [kit/INSTALL-AGENT.md](https://github.com/elu9527-sudo/harness-kit/blob/main/kit/INSTALL-AGENT.md)：给接手 agent 的安装提示词
+- [kit/checks/size_gate.py](https://github.com/elu9527-sudo/harness-kit/blob/main/kit/checks/size_gate.py)：结构红线报告（只提示不阻断）
+- [examples/CASEBOOK.md](https://github.com/elu9527-sudo/harness-kit/blob/main/examples/CASEBOOK.md)：真实项目的实账案例（已脱敏）
+- [LICENSE](https://github.com/elu9527-sudo/harness-kit/blob/main/LICENSE)：MIT
+
+## Citation
+
+```
+Based on harness-kit by elu9527-sudo
+https://github.com/elu9527-sudo/harness-kit
+```
