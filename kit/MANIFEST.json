@@ -1,14 +1,14 @@
 {
   "kit_version": "kit-v0.1.0-20261126",
-  "generated_at": "2026-11-26T07:23:08Z",
+  "generated_at": "2026-11-26T07:30:43Z",
   "file_count": 63,
-  "manifest_sha256": "31467cf3f1c64840e6f24f6da2aecb42043fc7620f9514e7dc9d5ddbac09c892",
+  "manifest_sha256": "3d9fb84bc63486cd8154c96bd5b500224aabe1beb70379fae577156bf973c23c",
   "windows_only": true,
   "files": [
     {
       "path": "bootstrap.ps1",
-      "sha256": "01180cada9ef8cd909042a9f429ecd482a598f8f0b47b8de6d8e0999aaff0c6a",
-      "bytes": 5588
+      "sha256": "34aec8e1565c05d71ceda309034824b4122a1662acea0cac6723953f5ade002e",
+      "bytes": 5555
     },
     {
       "path": "checks/size_gate_selftest.py",
@@ -42,7 +42,7 @@
     },
     {
       "path": "derive/append-event.ps1",
-      "sha256": "a344082f9425d2b4b6b37dced234a739a218b53650dc816734bd04cfbfa7d988",
+      "sha256": "bf61a6f8e39a2e845baea788980bc57c214f41da1758e8f359d3ac7c7e86c9c0",
       "bytes": 35417
     },
     {
@@ -142,8 +142,8 @@
     },
     {
       "path": "derive/stage-edit.ps1",
-      "sha256": "f9426fc7c684958c4744c3179351a24b0d9de0a8b5774a58dee129e38235abaa",
-      "bytes": 9982
+      "sha256": "e1024b567d2d58484c0a902f3c4f184df3a7ecd92d70864cb12185c65e7283f6",
+      "bytes": 9976
     },
     {
       "path": "derive/status.ps1",
@@ -157,7 +157,7 @@
     },
     {
       "path": "derive/trigger.ps1",
-      "sha256": "d0280511c552e63339b0faea883f7c6cffbd9e1ad88f93105faa95757eefa065",
+      "sha256": "e491f14722ae6887d9691857ab8971239119ebad61bf1bedf0ba9fd234c049ac",
       "bytes": 45352
     },
     {
@@ -207,8 +207,8 @@
     },
     {
       "path": "hermes-coach/config.yaml",
-      "sha256": "ea8a767954b40c037164f1a8d4fe2f0d3b1a23349ea32f3f3fc71b4d7385ef50",
-      "bytes": 2175
+      "sha256": "850badfb9647807d709ac139e579fcd768ef794c1391aa4a50e7be823a7710a5",
+      "bytes": 2165
     },
     {
       "path": "hermes-coach/distribution.yaml",
@@ -242,8 +242,8 @@
     },
     {
       "path": "hooks/decision-guard.ps1",
-      "sha256": "098317a571d80482b68afd55ee357b1a58c00eae9b72596fe8fea669a3a9fc6c",
-      "bytes": 7633
+      "sha256": "40813c9fe2673e195c969451fabecf6d092d6ca40ff6bd7075db4d02778741d6",
+      "bytes": 7627
     },
     {
       "path": "hooks/guard.ps1",
@@ -267,8 +267,8 @@
     },
     {
       "path": "INSTALL-AGENT.md",
-      "sha256": "7fb7f5b14ab87f00bcd4d63466c06fa6be1980ce357fecc80ed63221f929c6e6",
-      "bytes": 6916
+      "sha256": "d00ac0408871bb4af14f981c2d8f46dcca20d4155cf4ea0eb2c3e32149b8aadf",
+      "bytes": 6901
     },
     {
       "path": "INSTALL.md",
@@ -307,7 +307,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "e908317a389c0050ddc8f0f84a7e175a0f02dc7f03af1b38943da0336c1fa417",
+      "sha256": "72a426a57ae35751346b11cbb2278d65454ff109b5424a8db12c83873a767ac1",
       "bytes": 4280
     },
     {
