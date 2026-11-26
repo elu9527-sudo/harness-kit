@@ -1,0 +1,71 @@
+# Hermes coach 档案 — Vibe Coding 教练载体
+# 设计原则：读自由、写沙箱、签字/落账命令平台级硬拒。
+# 与主环境的差异是刻意的：教练的全部岗位价值 = 在缺乏证据时拒绝输出，
+# 因此本档案不携带 refusal/fallback 换模型重试链（它会机械性击穿这个角色闸门）。
+
+model:
+  provider: custom:token-plan-maas-exampleapi-com
+  default: deepseek-v4-pro        # 判断密集角色：推理档模型；换 qwen3.8-max 只改这两行
+providers:
+  custom:token-plan-maas-exampleapi-com:
+    name: 阿里百炼tokenplan
+    base_url: https://token-plan.api.example.com/compatible-mode/v1
+    api_mode: chat_completions
+    transport: openai_chat
+    model: deepseek-v4-pro
+    models:
+      deepseek-v4-pro:
+        supports_tools: true
+        supports_reasoning: true
+      qwen3.8-max:
+        supports_tools: true
+    api_key: <REPLACE_ME>
+
+terminal:
+  backend: local
+  shell: pwsh
+  cwd: <PROJECT_ROOT_ABSOLUTE_PATH>
+
+# ── 平台级硬拒：在 --yolo / /yolo / approvals.mode: off 之前生效 ──────────
+# 签字令、落账令、封锚令、契约录入令、账本经 shell 触碰——一律 BLOCKED。
+# 已知边界（官方 threat model）：deny 是命令文本策略非解释器沙箱，脚本包装的
+# 间接执行防不住。第二层防线 = 账本哈希链 + C7/C10 观测 + 会话底稿对账。
+approvals:
+  mode: manual
+  timeout: 300
+  deny:
+    - "*sign-gate*"
+    - "*append-event*"
+    - "*seal-harness*"
+    - "*stage-add*"
+    - "*validate-profile*"
+    - "*record-edit*"
+    - "*events.jsonl*"
+    - "*checkpoint.history*"
+
+# ── 工具面：保留 file + terminal（写沙箱硬限）与记忆组；其余显式关闭 ──────
+agent:
+  disabled_toolsets:
+    - browser
+    - code_execution
+    - delegation
+    - cronjob
+    - image_gen
+    - video_gen
+    - tts
+    - x_search
+    - computer_use
+    - kanban
+    - skills
+    - connections
+    - catalog
+    - search
+    - web
+    - project
+
+# 写前快照（影子 git，before write_file 有账；恢复保留人手改）
+checkpoints:
+  enabled: true
+
+ui:
+  language: zh

@@ -1,0 +1,7 @@
+@echo off
+setlocal
+REM ==== 按本机改这三行 ====
+set HERMES_HOME=D:\Hermes\coach-home
+set HERMES_WRITE_SAFE_ROOT=D:\Hermes\coach-scratch
+set HERMES_EXE=D:\Hermes\engine\src\.venv\Scripts\hermes.exe
+"%HERMES_EXE%" chat --tui

@@ -1,0 +1,298 @@
+{
+  "v": 1,
+  "project": "price-watch",
+  "note": "stage 1.3 (middleware) skipped by decision; not listed so it can never block",
+  "stages": [
+    {
+      "id": "0.0",
+      "goal": "harness 验证器 check.py（被 8 个 stage 的 verify 共用）",
+      "generates": [
+        "scripts/check.py"
+      ],
+      "requires": [],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py exists scripts/check.py",
+      "risk": "L1"
+    },
+    {
+      "id": "0.1",
+      "goal": "文档入口重构（00 → AGENTS.md）",
+      "generates": [
+        "AGENTS.md",
+        "docs/变更记录.md"
+      ],
+      "requires": [],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py exists AGENTS.md 01-产品文档.md 02-项目澄清.md 03-技术设计.md 04-采集系统架构.md",
+      "risk": "L0"
+    },
+    {
+      "id": "1.1",
+      "goal": "虚拟环境与依赖清单",
+      "generates": [
+        "requirements.txt",
+        "requirements.lock"
+      ],
+      "requires": [],
+      "verify": ".venv\\Scripts\\python.exe -m pip check",
+      "risk": "L1"
+    },
+    {
+      "id": "1.2",
+      "goal": "凭据模板与 git 忽略规则",
+      "generates": [
+        ".gitignore",
+        "tools/.gitignore",
+        "tools/.env.example"
+      ],
+      "requires": [
+        "1.1"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py exists .gitignore tools/.gitignore tools/.env.example",
+      "risk": "L2"
+    },
+    {
+      "id": "1.4",
+      "goal": "Chrome 启动器 + CDP 验证",
+      "generates": [
+        "scripts/start_chrome.ps1"
+      ],
+      "requires": [
+        "1.2"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py http http://127.0.0.1:9335/json/version webSocketDebuggerUrl",
+      "risk": "L1"
+    },
+    {
+      "id": "2.0.1",
+      "goal": "配置骨架 runtime.yaml + schema.yaml",
+      "generates": [
+        "config/runtime.yaml",
+        "config/schema.yaml"
+      ],
+      "requires": [
+        "1.4"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py yaml config/runtime.yaml config/schema.yaml",
+      "risk": "L1"
+    },
+    {
+      "id": "2.0.2",
+      "goal": "三份接口契约",
+      "generates": [
+        "contracts/provider_interface.py",
+        "contracts/ip_provider_interface.py",
+        "contracts/account_pool_interface.py"
+      ],
+      "requires": [
+        "2.0.1"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py import contracts.provider_interface contracts.ip_provider_interface contracts.account_pool_interface",
+      "risk": "L2"
+    },
+    {
+      "id": "2.0.3",
+      "goal": "BrowserLauncher（attach/launch 双模式）",
+      "generates": [
+        "price_watch/__init__.py",
+        "price_watch/browser/__init__.py",
+        "price_watch/browser/launcher.py"
+      ],
+      "requires": [
+        "2.0.2"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py import price_watch.browser.launcher",
+      "risk": "L1"
+    },
+    {
+      "id": "2.0.4",
+      "goal": "采集 JS（DOM/fiber 注入）",
+      "generates": [
+        "price_watch/browser/collector_js.py"
+      ],
+      "requires": [
+        "2.0.3"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py import price_watch.browser.collector_js",
+      "risk": "L1"
+    },
+    {
+      "id": "2.0.5",
+      "goal": "入口 main.py + 单商品手测",
+      "generates": [
+        "main.py"
+      ],
+      "requires": [
+        "2.0.4"
+      ],
+      "verify": ".venv\\Scripts\\python.exe main.py --help",
+      "risk": "L1"
+    },
+    {
+      "id": "3.1.1",
+      "goal": "SQLite 全表 + init_db 迁移",
+      "generates": [
+        "price_watch/storage/__init__.py",
+        "price_watch/storage/sqlite_db.py",
+        "scripts/init_db.py"
+      ],
+      "requires": [
+        "2.0.5"
+      ],
+      "verify": [
+        ".venv\\Scripts\\python.exe scripts/init_db.py --migrate",
+        ".venv\\Scripts\\python.exe scripts/init_db.py --migrate",
+        ".venv\\Scripts\\python.exe scripts/check.py sqlite data/price_watch.db snapshots accounts ips ip_leases"
+      ],
+      "risk": "L2"
+    },
+    {
+      "id": "3.1.2",
+      "goal": "账号池 + IP 池 + 预留位",
+      "generates": [
+        "price_watch/pool/__init__.py",
+        "price_watch/pool/ip_factory.py",
+        "price_watch/pool/providers/direct.py",
+        "price_watch/pool/providers/reserved.py"
+      ],
+      "requires": [
+        "3.1.1"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py import price_watch.pool.ip_factory price_watch.pool.providers.direct price_watch.pool.providers.reserved",
+      "risk": "L2"
+    },
+    {
+      "id": "3.1.3",
+      "goal": "预留位自检脚本",
+      "generates": [
+        "scripts/check_interface_impl.py"
+      ],
+      "requires": [
+        "3.1.2"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts/check_interface_impl.py",
+      "risk": "L2"
+    },
+    {
+      "id": "4.1",
+      "goal": "调度 + 单账号闭环",
+      "generates": [
+        "price_watch/scheduler.py",
+        "price_watch/pool/account_pool.py",
+        "price_watch/pool/ip_pool.py",
+        "tests/test_account_pool.py",
+        "tests/test_ip_pool.py"
+      ],
+      "requires": [
+        "3.1.2"
+      ],
+      "verify": ".venv\\Scripts\\python.exe -m pytest tests/test_account_pool.py -q",
+      "risk": "L1"
+    },
+    {
+      "id": "4.2",
+      "goal": "utils + 冷却与对账",
+      "generates": [
+        "price_watch/utils.py",
+        "tests/test_cooldown.py"
+      ],
+      "requires": [
+        "4.1"
+      ],
+      "verify": ".venv\\Scripts\\python.exe -m pytest tests/test_cooldown.py -q",
+      "risk": "L1"
+    },
+    {
+      "id": "5.1",
+      "goal": "匹配 + 到手价 + 判定",
+      "generates": [
+        "price_watch/matcher.py",
+        "price_watch/price_engine.py",
+        "price_watch/comparator.py",
+        "tests/test_price_engine.py",
+        "tests/test_comparator.py"
+      ],
+      "requires": [
+        "4.1"
+      ],
+      "verify": ".venv\\Scripts\\python.exe -m pytest tests/test_price_engine.py tests/test_comparator.py -q",
+      "risk": "L1"
+    },
+    {
+      "id": "5.2",
+      "goal": "IM日报推送",
+      "generates": [
+        "price_watch/notifier.py"
+      ],
+      "requires": [
+        "5.1"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts\\check.py import price_watch.notifier",
+      "risk": "L1"
+    },
+    {
+      "id": "5.3",
+      "goal": "端到端冒烟 + 本期验收",
+      "generates": [
+        "scripts/e2e_smoke.py",
+        "tests/test_e2e.py"
+      ],
+      "requires": [
+        "5.2",
+        "4.2"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts/e2e_smoke.py",
+      "risk": "L2"
+    },
+    {
+      "id": "6.0",
+      "goal": "真实环境跑通一轮最小闭环，业务方在IM群看到日报卡片",
+      "generates": [
+        "scripts/run_live_once.py",
+        "tests/test_run_live_once.py",
+        "AGENTS.md §2 表格补一行「真实跑一轮：已通 / 未通」与 §9 的运行口径（写清真实入口命令、观测三处去处、登录态在 profiles/main）"
+      ],
+      "requires": [
+        "5.3"
+      ],
+      "verify": ".venv\\Scripts\\python.exe scripts/run_live_once.py --audit-only --within-minutes 60",
+      "risk": "L2"
+    }
+  ],
+  "risk_policy": [
+    {
+      "pattern": "**/*.md",
+      "risk": "L0"
+    },
+    {
+      "pattern": "docs/**",
+      "risk": "L0"
+    },
+    {
+      "pattern": "config/**",
+      "risk": "L1"
+    },
+    {
+      "pattern": "price_watch/**",
+      "risk": "L1"
+    },
+    {
+      "pattern": "scripts/**",
+      "risk": "L1"
+    },
+    {
+      "pattern": "contracts/**",
+      "risk": "L2"
+    },
+    {
+      "pattern": "**/*.sql",
+      "risk": "L2"
+    },
+    {
+      "pattern": "requirements*",
+      "risk": "L2"
+    },
+    {
+      "pattern": "**/.env*",
+      "risk": "L2"
+    }
+  ]
+}

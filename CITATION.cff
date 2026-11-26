@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use or adapt this work, please cite it as below."
+title: "harness-kit"
+abstract: >-
+  A ledger-based safety net for multi-agent coding pipelines. The append-only
+  hash-chained ledger is the single source of truth; derived state, attention
+  routing and audits are computed from it, never declared by an agent. Only
+  humans sign irreversible actions. Structural limits report instead of block.
+type: software
+authors:
+  - alias: elu9527-sudo
+    name: elu9527-sudo
+repository-code: "https://github.com/elu9527-sudo/harness-kit"
+url: "https://github.com/elu9527-sudo/harness-kit"
+license: MIT
+version: 0.1.0
+date-released: "2026-11-26"
+keywords:
+  - multi-agent
+  - code-review
+  - ledger
+  - provenance
+  - llm
+  - audit

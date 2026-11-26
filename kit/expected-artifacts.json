@@ -1,0 +1,26 @@
+{
+  "_why": "安装产物的清单化契约。kit 之前是从 derive/hooks/prompts 三堆文件攒出来的，不是从一个能跑的项目反推出来的，于是任何只存在于某个项目实例里的文件（.claude/settings.json、contracts/、rules/、PROMPT-coding.md）都会被静默漏掉，要等有人刚好撞上才发现。install.ps1 的最后一步逐条核对本文件，缺一条就 FAILED —— 安装失败在这里比在第三步失败便宜得多。",
+  "_note": "path 相对项目根；kind=dir 要求目录存在；kind=file 要求文件存在且非空；kind=file? 允许缺失但要在 ACCEPTANCE 打出来；必须保持 JSON 合法，install.ps1 用 ConvertFrom-Json 读它。",
+  "items": [
+    { "path": "events.jsonl",                     "kind": "file", "why": "append-only 账本，安装时写 genesis" },
+    { "path": ".harness-anchor.json",             "kind": "file", "why": "项目根见证文件，.harness 被抹掉后仍能证明装过" },
+    { "path": "AGENTS.harness.md",                "kind": "file", "why": "由账本派生出的策略文件，教练首读" },
+    { "path": ".gitignore",                       "kind": "file", "why": "挡住 .harness/local、docs/_snap、凭据副本进库" },
+    { "path": ".claude/settings.json",            "kind": "file", "why": "执行面：allow 预授权 derive 脚本，分类器挂了流程也不停摆" },
+    { "path": "docs",                             "kind": "dir",  "why": "过程证据落点（diff / snap / 文档）" },
+    { "path": "scripts",                          "kind": "dir",  "why": "pre-tool 拒绝文案指向这里，放自检脚本" },
+    { "path": "tests",                            "kind": "dir",  "why": "同上" },
+    { "path": ".harness/INSTALL-AGENT.md",        "kind": "file", "why": "给接手安装的 agent 的作业书" },
+    { "path": ".harness/project.json",            "kind": "file", "why": "空契约，由教练填" },
+    { "path": ".harness/state.json",              "kind": "file", "why": "当前步/下一步" },
+    { "path": ".harness/local.json",              "kind": "file", "why": "机器本地状态（step/kit 版本）" },
+    { "path": ".harness/derive",                  "kind": "dir",  "why": "全部派生脚本" },
+    { "path": ".harness/hooks",                   "kind": "dir",  "why": "guard + decision-guard + pre + post 四份执行字节的钉值参照" },
+    { "path": ".harness/contracts",               "kind": "dir",  "why": "契约 schema，曾经整份缺失" },
+    { "path": ".harness/rules",                   "kind": "dir",  "why": "宪法，曾经整份缺失" },
+    { "path": ".harness/derive/append-event.ps1", "kind": "file", "why": "唯一账本写入通道" },
+    { "path": ".harness/derive/verify.ps1",       "kind": "file", "why": "阶段验收执行器" },
+    { "path": ".harness/derive/status.ps1",       "kind": "file", "why": "下一步靠它回答" },
+    { "path": ".harness/derive/hook-coverage.ps1","kind": "file", "why": "hook 覆盖自算自记" }
+  ]
+}

@@ -1,0 +1,38 @@
+
+project: price-watch
+  NEXT  4.1  调度 + 单账号闭环
+        risk      L1
+        verify    .venv\Scripts\python.exe -m pytest tests/test_account_pool.py -q
+        generate  price_watch/scheduler.py, price_watch/pool/account_pool.py, price_watch/pool/ip_pool.py, tests/test_account_pool.py, tests/test_ip_pool.py
+
+  BLOCKED
+    [ ] 4.2    utils + 冷却与对账
+    [ ] 5.1    匹配 + 到手价 + 判定
+    [ ] 5.2    IM日报推送
+    [ ] 5.3    端到端冒烟 + 本期验收
+  DONE
+    [x] 0.0    harness 验证器 check.py（被 8 个 stage 的 verify 共用）
+    [x] 0.1    文档入口重构（00 → AGENTS.md）
+    [x] 1.1    虚拟环境与依赖清单
+    [x] 1.2    凭据模板与 git 忽略规则
+    [x] 1.4    Chrome 启动器 + CDP 验证
+    [x] 2.0.1  配置骨架 runtime.yaml + schema.yaml
+    [x] 2.0.2  三份接口契约
+    [x] 2.0.3  BrowserLauncher（attach/launch 双模式）
+    [x] 2.0.4  采集 JS（DOM/fiber 注入）
+    [x] 2.0.5  入口 main.py + 单商品手测
+    [x] 3.1.1  SQLite 全表 + init_db 迁移
+    [x] 3.1.2  账号池 + IP 池 + 预留位
+    [x] 3.1.3  预留位自检脚本
+  READY
+    [>] 4.1    调度 + 单账号闭环
+
+  HISTORICAL GAPS (6) - reported only, do NOT block progress
+    · verify_mismatch        1.1    evidence ran '.venv\Scripts\python.exe -c "import yaml; print('yaml ok')"' but profile declares '.venv\Scripts\python.exe -m pip check'
+    · done_without_evidence  0.0    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+    · done_without_evidence  0.1    verify only ever ran trivially (trivial=true) - a command that cannot fail proves nothing
+    · done_without_evidence  1.1    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+    · done_without_evidence  1.2    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+    · done_without_evidence  1.4    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+
+

@@ -1,0 +1,117 @@
+=== ROUND 03  start=2026-11-07 17:05:50.680 ===
+
+--- audit ---
+
+harness audit · price-watch
+  liveness - is the harness itself connected? (status.ps1 answers readiness)
+
+  C1 chain         intact   746 events, last_at=11/07/2026 09:02:34
+  C2 registration  11/11 declared types have a writer path
+  C3 emission      7/11 declared types have ever been emitted
+                   never:     deviate skip blocker_open blocker_close
+  C4 rule input    T1=0  T2=5  T3=213  T4=213  T5=0  T6=0  T11=660  T12=3  T13=9
+                   unexercised: T1 T5 T6  (not a fault by itself - C2 answers whether it can ever fire)
+  C5 evidence      0.1=void  1.1=mismatch  2.0.1=pass  2.0.2=pass  2.0.3=pass  2.0.4=pass  2.0.5=pass  3.1.1=pass  3.1.2=pass  3.1.3=pass
+  C6 verify-ref    0 dangling reference(s)
+  C7 drift         0 drifted, 0 unrecorded
+  C8 attribution   local_step='4.1'  last 20 events: top='4.1' 11/20
+  C9 decisions     1 record(s) checked against the ledger
+  C10 harness      fb656124f23c
+
+  WARNINGS (5)
+    ! C5  1.1            its newest green verify ran a command the stage does not declare (ran '.venv\Scripts\python.exe -c "import yaml; print('yaml ok')"', declared '.venv\Scripts\python.exe -m pip check') - a pass for someone else's acceptance is not evidence here
+    ! C5  0.1            verify ran 1 time(s) but never meaningfully - a command that cannot fail establishes nothing
+    ! C5  evidence       5 stage(s) have passed every time and never once failed (1.1, 2.0.3, 2.0.5, 3.1.1, 3.1.2) - cannot yet distinguish 'correct' from 'unable to fail'; this warning disappears per stage as soon as that stage produces a real failure
+    ! C9  skip-1.3       变更记录 lists step 1.3 as skipped, but the ledger has no skip event for it - T5_skip never fired and can never fire for this row: the only recorded skip in project history lived in prose
+    ! C9  skip-1.3       变更记录 lists step 1.3 as skipped, but the ledger has no skip event for it - T5_skip never fired and can never fire for this row: the only recorded skip in project history lived in prose
+
+
+[exit=0] [elapsed=2.6s]
+
+--- trigger ---
+
+Hermes needed: 16 item(s)
+  T3_out_of_scope  2.0.1  C:/Users/admin/AppData/Local/Temp/prchk_check_contracts.py
+  T3_out_of_scope  2.0.1  C:/Users/admin/AppData/Local/Temp/prchk_sigs.py
+  T3_out_of_scope  2.0.3  C:/Users/admin/AppData/Local/Temp/launcher_selftest.py
+  T3_out_of_scope  2.0.3  C:/Users/admin/AppData/Local/Temp/collector_selftest.py
+  T11_accepted_modified 3.1.2  scripts/init_db.py belongs to 3.1.1 (already verified), modified under step 3.1.2 with no contract_change
+  T3_out_of_scope  3.1.2  price_watch/pool/providers/__init__.py
+  T2_contract      2.0.1  .harness/project.json - verify 命令改为 check.py 无引号形式（原 -c 内嵌引号在 PowerShell 下必然 SyntaxError） changed
+  T2_contract      2.0.2  contracts/ip_provider_interface.py - 变更 agent 按人指派追加豁免条款与 IP_PROVIDER_ANCHOR 同步要求；人已确认采用，作为 3.1.3 自检的口径基础 changed
+  T2_contract      2.0.3  2 change(s): .harness/project.json - 4.1/4.2/5.1 的 verify 依赖测试文件却无 stage 产出，补进各自 generates; .harness/project.json - 3.1.2 与 3.1.3 前置依赖倒置（死锁）；4.1/4.2 测试归属错配；check.py 无 stage 归属
+  T2_contract      3.1.1  .harness/project.json - 3.1.1 的 verify 由单条改为 3 条（主迁移 + 幂等 + 表结构）：验收本就是多条断言，单条字符串放不下，另外两条只能活在教练的聊天里被人手打 changed
+  T7_risk_L2       1.2    stage 1.2 is L2, ran, and has no gate record
+  T7_risk_L2       2.0.2  stage 2.0.2 is L2, ran, and has no gate record
+  T12_gate_after_the_fact 3.1.1  gate recorded 06:20:25 but first event of this step is 06:16:48 - it ratified a step that had already run; a front gate must precede the work
+  T12_gate_after_the_fact 3.1.2  gate recorded 06:49:09 but first event of this step is 06:27:25 - it ratified a step that had already run; a front gate must precede the work
+  T12_gate_after_the_fact 3.1.3  gate recorded 07:49:17 but first event of this step is 07:40:31 - it ratified a step that had already run; a front gate must precede the work
+  T2c_unsigned_contract 2.0.1  1 contract change(s) on record carry no approved_by (e.g. '.harness/project.json') - a gate recorded elsewhere does not sign a change
+
+Scoped input for this run:
+  read only: step 1.2 events + diff | step 2.0.1 events + diff | step 2.0.2 events + diff | step 2.0.3 events + diff | step 3.1.1 events + diff | step 3.1.2 events + diff | step 3.1.3 events + diff
+  do NOT read the whole ledger
+
+
+[exit=3] [elapsed=2.5s]
+
+--- status ---
+
+project: price-watch
+  NEXT  4.1  调度 + 单账号闭环
+        risk      L1
+        verify    .venv\Scripts\python.exe -m pytest tests/test_account_pool.py -q
+        generate  price_watch/scheduler.py, price_watch/pool/account_pool.py, price_watch/pool/ip_pool.py, tests/test_account_pool.py, tests/test_ip_pool.py
+
+  BLOCKED
+    [ ] 4.2    utils + 冷却与对账
+    [ ] 5.1    匹配 + 到手价 + 判定
+    [ ] 5.2    IM日报推送
+    [ ] 5.3    端到端冒烟 + 本期验收
+  DONE
+    [x] 0.0    harness 验证器 check.py（被 8 个 stage 的 verify 共用）
+    [x] 0.1    文档入口重构（00 → AGENTS.md）
+    [x] 1.1    虚拟环境与依赖清单
+    [x] 1.2    凭据模板与 git 忽略规则
+    [x] 1.4    Chrome 启动器 + CDP 验证
+    [x] 2.0.1  配置骨架 runtime.yaml + schema.yaml
+    [x] 2.0.2  三份接口契约
+    [x] 2.0.3  BrowserLauncher（attach/launch 双模式）
+    [x] 2.0.4  采集 JS（DOM/fiber 注入）
+    [x] 2.0.5  入口 main.py + 单商品手测
+    [x] 3.1.1  SQLite 全表 + init_db 迁移
+    [x] 3.1.2  账号池 + IP 池 + 预留位
+    [x] 3.1.3  预留位自检脚本
+  READY
+    [>] 4.1    调度 + 单账号闭环
+
+  HISTORICAL GAPS (6) - reported only, do NOT block progress
+    · verify_mismatch        1.1    evidence ran '.venv\Scripts\python.exe -c "import yaml; print('yaml ok')"' but profile declares '.venv\Scripts\python.exe -m pip check'
+    · done_without_evidence  0.0    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+    · done_without_evidence  0.1    verify only ever ran trivially (trivial=true) - a command that cannot fail proves nothing
+    · done_without_evidence  1.1    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+    · done_without_evidence  1.2    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+    · done_without_evidence  1.4    all files exist but no passing verify(exit=0,trivial=false,real_test=true) in events
+
+
+[exit=0] [elapsed=0.8s]
+
+--- verify-ledger ---
+[OK] 746 records, chain intact, head=14d70d6517ef
+
+[exit=0] [elapsed=2.1s]
+
+--- sweepDry ---
+[sweep] 48 files covered, disk matches ledger
+
+[exit=0] [elapsed=58.6s]
+
+--- checkpoint.json ---
+{"seq":746,"head":"14d70d6517eff43709ac6ea72717a219a160c4e2553bef8e6dcaaaaaaff4bb96","at":"2026-11-07T09:02:34Z","source":"post-tool-hook"}
+
+--- ledger events: 746 ; last3 ---
+{"v":1,"seq":744,"at":"2026-11-07T09:01:57Z","step":"4.1","kind":"routine","actor":"hook","event":"tool_use","data":{"tool":"Bash","observed_by":"hook","cmd":"cd \"D:/work/price-watch-demo\" && export PYTHONIOENCODING=utf-8 && grep -n \"L112\\|L101\\|exempt_names\\|ANCHOR_SECTION\\|def \\|assert\\|L76-L118\" scripts/check_interface_impl.py | head -30 && echo \"=== 行数与字节\" && wc -lc scripts/check_interface_impl.py && .venv/Scripts/python.exe scripts/check_interface_impl.py | tail -2; echo \"exit=${PIPESTATUS[0]}\"","trivial":false},"prev":"98e9aebe8df5e0d4538ba759fd78c0433e8844b4973101be01f90a33d071a324","self":"d4bb6fc8dde79562c60057a662b86137c67982316844b83305d3c9350c88e5d7"}
+{"v":1,"seq":745,"at":"2026-11-07T09:02:09Z","step":"4.1","kind":"routine","actor":"hook","event":"tool_use","data":{"tool":"Bash","observed_by":"hook","cmd":"cd \"D:/work/price-watch-demo\" && export PYTHONIOENCODING=utf-8 && .venv/Scripts/python.exe scripts/check_interface_impl.py | grep -E \"^(FAIL|SKIP|RESULT|SKIPPED)\" | head -20 && echo \"=== 常量区当前状态\" && sed -n '96,124p' scripts/check_interface_impl.py","trivial":false},"prev":"d4bb6fc8dde79562c60057a662b86137c67982316844b83305d3c9350c88e5d7","self":"e0af9e6a0667125101966557352711ebdd231d46ea4a24a70010254902cbf5c4"}
+{"v":1,"seq":746,"at":"2026-11-07T09:02:34Z","step":"4.1","kind":"routine","actor":"hook","event":"tool_use","data":{"tool":"Bash","observed_by":"hook","cmd":"cd \"D:/work/price-watch-demo\" && export PYTHONIOENCODING=utf-8 && grep -n \"account_pool_interface\" scripts/check_interface_impl.py && sed -n '218,232p;336,348p' config/schema.yaml && echo \"=== data/ 是否存在（决定要不要写 ALTER 迁移）\" && ls -d data 2>/dev/null || echo \"  data/ 不存在：对齐后首次 --migrate 会按新 schema 全新建表，无需 ALTER\"","trivial":false},"prev":"e0af9e6a0667125101966557352711ebdd231d46ea4a24a70010254902cbf5c4","self":"14d70d6517eff43709ac6ea72717a219a160c4e2553bef8e6dcaaaaaaff4bb96"}
+
+END=17:06:57.301

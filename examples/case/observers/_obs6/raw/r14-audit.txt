@@ -1,0 +1,24 @@
+
+harness audit · price-watch
+  liveness - is the harness itself connected? (status.ps1 answers readiness)
+
+  C1 chain         intact   953 events, last_at=11/09/2026 01:45:03
+  C2 registration  11/11 declared types have a writer path
+  C3 emission      8/11 declared types have ever been emitted
+                   never:     skip blocker_open blocker_close
+  C4 rule input    T1=1  T2=5  T3=349  T4=349  T5=0  T6=0  T11=848  T12=4  T13=9  T14=34
+                   unexercised: T5 T6  (not a fault by itself - C2 answers whether it can ever fire)
+  C5 evidence      0.1=void  1.1=mismatch  2.0.1=pass  2.0.2=pass  2.0.3=pass  2.0.4=pass  2.0.5=pass  3.1.1=pass  3.1.2=pass  3.1.3=pass  4.1=pass  4.2=pass  5.1=pass
+  C6 verify-ref    0 dangling reference(s)
+  C7 drift         0 drifted, 0 unrecorded
+  C8 attribution   local_step='5.2'  last 20 events: top='5.2' 19/20
+  C9 decisions     1 record(s) checked against the ledger
+  C10 harness      7353781bb227
+
+  WARNINGS (4)
+    ! C5  1.1            its newest green verify ran a command the stage does not declare (ran '.venv\Scripts\python.exe -c "import yaml; print('yaml ok')"', declared '.venv\Scripts\python.exe -m pip check') - a pass for someone else's acceptance is not evidence here
+    ! C5  0.1            verify ran 1 time(s) but never meaningfully - a command that cannot fail establishes nothing
+    ! C5  evidence       7 stage(s) have passed every time and never once failed (1.1, 2.0.3, 2.0.5, 3.1.1, 3.1.2, 4.2, 5.1) - cannot yet distinguish 'correct' from 'unable to fail'; this warning disappears per stage as soon as that stage produces a real failure
+    ! C9  skip-1.3       变更记录 lists step 1.3 as skipped, but the ledger has no skip event for it - T5_skip never fired and can never fire for this row: the only recorded skip in project history lived in prose
+
+

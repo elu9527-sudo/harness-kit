@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>vibecoding 三方流水线 × 账本式 harness · 全貌</title>
+<style>
+  body { background:#FFFFFF; color:#000; font-family:Helvetica,Arial,'PingFang SC','Microsoft YaHei',sans-serif; margin:24px; }
+  h2 { font-size:17px; border-bottom:1px solid #000; padding-bottom:6px; margin-top:48px; }
+  p.meta { font-size:11.5px; color:#333; }
+  svg { display:block; margin-top:16px; }
+  svg text { font-family:Helvetica,Arial,'PingFang SC','Microsoft YaHei',sans-serif; fill:#000; }
+  svg .zh { font-size:12px; } svg .en { font-size:9.5px; fill:#333; } svg .grp { font-size:13px; font-weight:bold; }
+  svg .bar { font-size:9px; } svg .mono { font-family:ui-monospace,Consolas,monospace; font-size:9px; fill:#333; }
+  svg .lbl { font-size:9.5px; fill:#000; }
+  table { border-collapse:collapse; font-size:11.5px; margin-top:12px; }
+  th, td { border:1px solid #000; padding:6px 10px; text-align:left; vertical-align:top; }
+  th { font-weight:bold; }
+</style>
+</head>
+<body>
+
+<h2>一、系统架构</h2>
+<p class="meta">教练（Trae）→ 编码 agent（Claude Code）→ 文档 agent（Hermes），人做中继；一切判断以左栏账本为唯一事实，右道检测器只做账本重放。</p>
+
+<svg viewBox="0 0 1400 960" width="1400">
+  <!-- 左栏边界 -->
+  <rect x="20" y="20" width="330" height="940" fill="none" stroke="#000" stroke-width="1"/>
+  <text x="185" y="42" text-anchor="middle" class="grp">账本与证据层</text>
+  <text x="185" y="58" text-anchor="middle" class="en">Append-only JSONL · SHA-256 哈希链</text>
+
+  <!-- events.jsonl 圆柱 -->
+  <path d="M40 102 A 140 12 0 0 1 320 102 L320 168 A 140 12 0 0 1 40 168 Z" fill="#fff" stroke="#000"/>
+  <ellipse cx="180" cy="102" rx="140" ry="12" fill="#fff" stroke="#000"/>
+  <text x="180" y="128" text-anchor="middle" class="zh">总账 · 事件流水</text>
+  <text x="180" y="144" text-anchor="middle" class="mono">events.jsonl · seq/prev/self · 1058+</text>
+
+  <!-- checkpoint 圆柱 -->
+  <path d="M40 222 A 140 12 0 0 1 320 222 L320 288 A 140 12 0 0 1 40 288 Z" fill="#fff" stroke="#000"/>
+  <ellipse cx="180" cy="222" rx="140" ry="12" fill="#fff" stroke="#000"/>
+  <text x="180" y="248" text-anchor="middle" class="zh">外部锚 · 截尾可证</text>
+  <text x="180" y="264" text-anchor="middle" class="mono">checkpoint.json · 单调门+历史副本</text>
+
+  <rect x="40" y="330" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="180" y="352" text-anchor="middle" class="zh">写前图像</text>
+  <text x="180" y="368" text-anchor="middle" class="mono">docs/_snap/&lt;step&gt;/*.before.sha · 用后即删</text>
+
+  <rect x="40" y="410" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="180" y="432" text-anchor="middle" class="zh">巡逻心跳</text>
+  <text x="180" y="448" text-anchor="middle" class="mono">sweep-status.json · C11 超 45min 点名</text>
+
+  <rect x="40" y="490" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="180" y="512" text-anchor="middle" class="zh">契约 · 唯一可改裁判规则的文件</text>
+  <text x="180" y="528" text-anchor="middle" class="mono">project.json · contract_change+人签</text>
+
+  <rect x="40" y="570" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="180" y="592" text-anchor="middle" class="zh">视图指针 · 当前步</text>
+  <text x="180" y="608" text-anchor="middle" class="mono">local.json current_step（投影非事实）</text>
+
+  <rect x="60" y="660" width="240" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="180" y="682" text-anchor="middle" class="zh">VOID · 空验证不可收口</text>
+  <text x="180" y="698" text-anchor="middle" class="en">不可能失败的命令判 VOID</text>
+
+  <text x="40" y="760" class="en">视图 = trigger/audit/sweep 每次从账本重放计算；</text>
+  <text x="40" y="776" class="en">账本只追加、不修改、不删除；毁证 = 断链。</text>
+  <text x="40" y="792" class="en">写通道三类：hook（Claude Edit/Write）、</text>
+  <text x="40" y="808" class="en">append-event（verify/gate/advance）、</text>
+  <text x="40" y="824" class="en">补偿登记（record-edit/sweep 补像）。</text>
+
+  <!-- 中栏边界 -->
+  <rect x="380" y="20" width="640" height="940" fill="none" stroke="#000" stroke-width="1"/>
+  <text x="700" y="42" text-anchor="middle" class="grp">核心逻辑层 · 一步的完整流程</text>
+  <text x="700" y="58" text-anchor="middle" class="en">人中继 + 三 agent + hook 落账</text>
+
+  <ellipse cx="560" cy="70" rx="60" ry="20" fill="#fff" stroke="#000"/>
+  <text x="560" y="74" text-anchor="middle" class="zh">Start</text>
+
+  <rect x="420" y="120" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="142" text-anchor="middle" class="zh">教练卡 · 任务与验收口径</text>
+  <text x="560" y="158" text-anchor="middle" class="mono">Trae · coach-v2.3.8 · L2 附建议原因</text>
+
+  <rect x="420" y="210" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="232" text-anchor="middle" class="zh">人中继 · 逐段复制</text>
+  <text x="560" y="248" text-anchor="middle" class="en">角色不互相吸收 · 人是唯一总线</text>
+
+  <rect x="420" y="300" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="322" text-anchor="middle" class="zh">编码 agent 干活</text>
+  <text x="560" y="338" text-anchor="middle" class="mono">Claude Code · 一次只发一层</text>
+
+  <rect x="420" y="390" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="410" text-anchor="middle" class="zh">写前快照</text>
+  <text x="560" y="425" text-anchor="middle" class="en">PreToolUse hook 落真实 before 字节</text>
+  <rect x="435" y="430" width="250" height="10" fill="#DCE6F1" stroke="#000"/><text x="442" y="438" class="bar">Edit · Write · MultiEdit（matcher 仅此三）</text>
+
+  <rect x="420" y="480" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="502" text-anchor="middle" class="zh">产物落盘</text>
+  <text x="560" y="518" text-anchor="middle" class="mono">边界 = stage.generates · 越界即 T3</text>
+
+  <rect x="420" y="570" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="590" text-anchor="middle" class="zh">tool_use 落账</text>
+  <text x="560" y="605" text-anchor="middle" class="en">PostToolUse hook · 链算 + 推进锚</text>
+  <text x="560" y="619" text-anchor="middle" class="mono">observed_by=hook</text>
+
+  <rect x="420" y="660" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="680" text-anchor="middle" class="zh">verify · 三态判定</text>
+  <text x="560" y="695" text-anchor="middle" class="en">PASS / FAIL / VOID · products 前后像</text>
+  <text x="560" y="709" text-anchor="middle" class="mono">只跑 stage.verify 声明的那条</text>
+
+  <rect x="420" y="750" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="772" text-anchor="middle" class="zh">L2 关卡签字 · 仅人</text>
+  <text x="560" y="788" text-anchor="middle" class="mono">sign-gate · -WhyFile · 控制字符拒收</text>
+
+  <rect x="420" y="840" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="560" y="862" text-anchor="middle" class="zh">step_advance · 收口</text>
+  <text x="560" y="878" text-anchor="middle" class="mono">finish-step · gate 缺失即 T7</text>
+
+  <ellipse cx="560" cy="930" rx="60" ry="20" fill="#fff" stroke="#000"/>
+  <text x="560" y="934" text-anchor="middle" class="zh">下一步</text>
+
+  <!-- 主流程连线 -->
+  <g stroke="#000" fill="none">
+    <line x1="560" y1="90" x2="560" y2="120"/>
+    <line x1="560" y1="174" x2="560" y2="210"/>
+    <line x1="560" y1="264" x2="560" y2="300"/>
+    <line x1="560" y1="354" x2="560" y2="390"/>
+    <line x1="560" y1="444" x2="560" y2="480"/>
+    <line x1="560" y1="534" x2="560" y2="570"/>
+    <line x1="560" y1="624" x2="560" y2="660"/>
+    <line x1="560" y1="714" x2="560" y2="750"/>
+    <line x1="560" y1="804" x2="560" y2="840"/>
+    <line x1="560" y1="894" x2="560" y2="910"/>
+  </g>
+  <g fill="#000">
+    <polygon points="556,117 564,117 560,124"/>
+    <polygon points="556,207 564,207 560,214"/>
+    <polygon points="556,297 564,297 560,304"/>
+    <polygon points="556,387 564,387 560,394"/>
+    <polygon points="556,477 564,477 560,484"/>
+    <polygon points="556,567 564,567 560,574"/>
+    <polygon points="556,657 564,657 560,664"/>
+    <line x1="558" y1="720" x2="562" y2="720"/>
+  </g>
+  <text x="568" y="740" class="lbl">PASS · 三态皆落账</text>
+  <polygon points="556,747 564,747 560,754"/>
+  <polygon points="556,837 564,837 560,844"/>
+  <polygon points="556,907 564,907 560,914"/>
+
+  <!-- FAIL 旁路 -->
+  <line x1="700" y1="687" x2="738" y2="687" stroke="#000"/>
+  <polygon points="735,683 735,691 742,687"/>
+  <rect x="740" y="690" width="195" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="837" y="710" text-anchor="middle" class="zh">FAIL · 停住并记因</text>
+  <text x="837" y="725" text-anchor="middle" class="en">stdout_tail 上屏 · 不许绕</text>
+  <text x="837" y="739" text-anchor="middle" class="lbl">红必须解决，不能被掩盖</text>
+  <line x1="837" y1="744" x2="837" y2="777" stroke="#000"/>
+  <line x1="837" y1="777" x2="702" y2="777" stroke="#000"/>
+  <polygon points="705,773 705,781 698,777"/>
+  <text x="760" y="770" class="lbl">改后复跑</text>
+
+  <!-- VOID 旁路 -->
+  <line x1="420" y1="690" x2="302" y2="690" stroke="#000"/>
+  <polygon points="305,686 305,694 298,690"/>
+
+  <!-- 观察旁道（中栏右列：在流程中的安全网） -->
+  <rect x="775" y="300" width="210" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="880" y="318" text-anchor="middle" class="zh">trigger · 告警队列</text>
+  <rect x="783" y="326" width="194" height="10" fill="#DCE6F1" stroke="#000"/><text x="789" y="334" class="bar">T1–T14 · R1 定向注入 · 无状态重算</text>
+  <text x="880" y="350" text-anchor="middle" class="en">告警直接进编码 agent 上下文</text>
+
+  <rect x="775" y="460" width="210" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="880" y="478" text-anchor="middle" class="zh">audit · 收门体检</text>
+  <rect x="783" y="486" width="194" height="10" fill="#DCE6F1" stroke="#000"/><text x="789" y="494" class="bar">C1–C12 · FAULTS=0 才可收口</text>
+  <text x="880" y="510" text-anchor="middle" class="en">exit 0/1 由人看</text>
+
+  <rect x="775" y="620" width="210" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="880" y="638" text-anchor="middle" class="zh">sweep · 盘账巡逻</text>
+  <rect x="783" y="646" width="194" height="10" fill="#DCE6F1" stroke="#000"/><text x="789" y="654" class="bar">10min · settle 复读 · unrecorded_write</text>
+
+  <rect x="775" y="780" width="210" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="880" y="798" text-anchor="middle" class="zh">观测员子 agent</text>
+  <rect x="783" y="806" width="194" height="10" fill="#DCE6F1" stroke="#000"/><text x="789" y="814" class="bar">只读窗口 · 编号缺陷报告</text>
+  <text x="880" y="828" text-anchor="middle" class="en">已抓出 O4/O5/O6 · 包括我造的 bug</text>
+
+  <!-- trigger/audit 注入主流程 -->
+  <line x1="775" y1="327" x2="702" y2="327" stroke="#000"/>
+  <polygon points="705,323 705,331 698,327"/>
+  <text x="712" y="322" class="lbl">告警注入</text>
+  <line x1="775" y1="507" x2="702" y2="507" stroke="#000"/>
+  <polygon points="705,503 705,511 698,507"/>
+
+  <!-- 主干：账本 → 检测器（只读） -->
+  <line x1="320" y1="135" x2="367" y2="135" stroke="#000"/>
+  <line x1="367" y1="135" x2="367" y2="820" stroke="#000"/>
+  <line x1="367" y1="282" x2="878" y2="282" stroke="#000"/>
+  <line x1="878" y1="282" x2="878" y2="296" stroke="#000"/>
+  <polygon points="874,293 882,293 878,300"/>
+  <line x1="367" y1="452" x2="878" y2="452" stroke="#000"/>
+  <line x1="878" y1="452" x2="878" y2="456" stroke="#000"/>
+  <polygon points="874,453 882,453 878,460"/>
+  <line x1="367" y1="640" x2="737" y2="640" stroke="#000"/>
+  <line x1="737" y1="640" x2="771" y2="640" stroke="#000"/>
+  <polygon points="768,636 768,644 775,640"/>
+  <line x1="367" y1="820" x2="771" y2="820" stroke="#000"/>
+  <polygon points="768,816 768,824 775,820"/>
+  <text x="374" y="128" class="lbl">检测器唯一输入 = 总账（只读）</text>
+
+  <!-- n6 → events / checkpoint（写） -->
+  <line x1="420" y1="580" x2="373" y2="580" stroke="#000"/>
+  <line x1="373" y1="580" x2="373" y2="150" stroke="#000"/>
+  <polygon points="323,146 323,154 316,150"/>
+  <line x1="420" y1="600" x2="360" y2="600" stroke="#000"/>
+  <line x1="360" y1="600" x2="360" y2="255" stroke="#000"/>
+  <polygon points="323,251 323,259 316,255"/>
+  <text x="392" y="612" class="lbl">落账 / 推进锚</text>
+
+  <!-- sweep → 心跳 + 补像写总账 -->
+  <line x1="775" y1="630" x2="745" y2="630" stroke="#000"/>
+  <line x1="745" y1="630" x2="745" y2="560" stroke="#000"/>
+  <text x="748" y="608" class="lbl">心跳→左栏 · 补像写总账</text>
+
+  <!-- 右栏边界 -->
+  <rect x="1050" y="20" width="330" height="940" fill="none" stroke="#000" stroke-width="1"/>
+  <text x="1215" y="42" text-anchor="middle" class="grp">服务层 · 自证与人工通道</text>
+  <text x="1215" y="58" text-anchor="middle" class="en">PowerShell 7 + Node.js hooks · 零 token 外验证</text>
+
+  <rect x="1080" y="90" width="280" height="64" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1220" y="110" text-anchor="middle" class="zh">人类签字通道</text>
+  <rect x="1088" y="118" width="264" height="10" fill="#DCE6F1" stroke="#000"/><text x="1094" y="126" class="bar">sign-gate · -WhyFile UTF-8 文件通道</text>
+  <rect x="1088" y="131" width="264" height="10" fill="#DCE6F1" stroke="#000"/><text x="1094" y="139" class="bar">record-edit · 非 hook 写入的事后解释</text>
+
+  <rect x="1080" y="184" width="280" height="64" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1220" y="204" text-anchor="middle" class="zh">canary · 故障注入自证</text>
+  <rect x="1088" y="212" width="264" height="10" fill="#DCE6F1" stroke="#000"/><text x="1094" y="220" class="bar">14 场景 · 死检测器必须读成 DEAD</text>
+  <text x="1220" y="240" text-anchor="middle" class="en">每次改 harness 后必须 14/14</text>
+
+  <rect x="1080" y="278" width="280" height="64" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1220" y="298" text-anchor="middle" class="zh">verify · in-toto 式产物判定</text>
+  <rect x="1088" y="306" width="264" height="10" fill="#DCE6F1" stroke="#000"/><text x="1094" y="314" class="bar">products 前后像 · 绑定声明命令</text>
+  <text x="1220" y="334" text-anchor="middle" class="en">C5 三态 · 跑过 ≠ 记了 ≠ 认了</text>
+
+  <rect x="1080" y="372" width="280" height="64" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1220" y="392" text-anchor="middle" class="zh">seal-harness · 锁文件式锚定</text>
+  <rect x="1088" y="400" width="264" height="10" fill="#DCE6F1" stroke="#000"/><text x="1094" y="408" class="bar">C10 · 20 文件 digest 钉进账本</text>
+  <text x="1220" y="428" text-anchor="middle" class="en">"当时跑的是哪版安全网"必须可指认</text>
+
+  <rect x="1080" y="470" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1220" y="490" text-anchor="middle" class="zh">收口与告警出口</text>
+  <text x="1220" y="506" text-anchor="middle" class="mono">audit exit 0/1 → 人 · R1 队列 → 教练卡</text>
+
+  <rect x="1080" y="540" width="280" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1220" y="560" text-anchor="middle" class="zh">契约义务清算</text>
+  <text x="1220" y="576" text-anchor="middle" class="en">放宽必签 · 收紧免签 · T2/T7 长鸣</text>
+
+  <text x="1080" y="640" class="en">读图顺序：沿中栏 Start→End 竖线走一遍主路径；</text>
+  <text x="1080" y="656" class="en">再看右道检测器如何用主干线只读总账；</text>
+  <text x="1080" y="672" class="en">旁路 = FAIL/VOID/补像/巡逻；</text>
+  <text x="1080" y="688" class="en">落点 = 左栏五个存储，每个都有唯一写入者。</text>
+  <text x="1080" y="720" class="en">今日收口实录：链 1058 完好 · FAULTS=0 ·</text>
+  <text x="1080" y="736" class="en">重签 1036/1037 · seal daa3ed1014de。</text>
+
+  <!-- 注入: trigger告警也进教练侧（虚义用文字） -->
+  <line x1="985" y1="807" x2="1015" y2="807" stroke="#000"/>
+  <polygon points="1012,803 1012,811 1019,807"/>
+  <text x="1023" y="795" class="lbl">编号报告</text>
+  <text x="1023" y="808" class="lbl">交人转教练</text>
+</svg>
+
+<h2>二、一条证据的落账（触发 → 预检 → 加工 → 校验 → 写账 → 推锚 → 扇出/对账）</h2>
+
+<svg viewBox="0 0 1400 360" width="1400">
+  <ellipse cx="115" cy="177" rx="70" ry="24" fill="#fff" stroke="#000"/>
+  <text x="115" y="173" text-anchor="middle" class="zh">事件发生</text>
+  <text x="115" y="188" text-anchor="middle" class="en">tool_use·verify·gate·sweep</text>
+
+  <rect x="220" y="150" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="295" y="170" text-anchor="middle" class="zh">锁</text>
+  <text x="295" y="186" text-anchor="middle" class="mono">events.jsonl.lock</text>
+  <text x="295" y="198" text-anchor="middle" class="en">create-exclusive</text>
+
+  <rect x="220" y="40" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="295" y="60" text-anchor="middle" class="zh">争锁 → 拒绝</text>
+  <text x="295" y="76" text-anchor="middle" class="en">不重试不覆盖 · 下轮再来</text>
+
+  <rect x="420" y="150" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="495" y="170" text-anchor="middle" class="zh">settle 复读</text>
+  <text x="495" y="186" text-anchor="middle" class="en">盘—账—盘 · 撕裂即弃</text>
+
+  <rect x="620" y="150" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="695" y="168" text-anchor="middle" class="zh">取前后像</text>
+  <text x="695" y="182" text-anchor="middle" class="en">generates 的 products 快照</text>
+  <text x="695" y="196" text-anchor="middle" class="mono">created/modified/unchanged</text>
+
+  <rect x="820" y="150" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="895" y="170" text-anchor="middle" class="zh">链算</text>
+  <text x="895" y="186" text-anchor="mono en">self=sha256(canonical(去 self))</text>
+
+  <rect x="1020" y="150" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1095" y="170" text-anchor="middle" class="zh">追加 + 推锚</text>
+  <text x="1095" y="186" text-anchor="middle" class="en">append 成功后才准动锚</text>
+
+  <rect x="1220" y="150" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1295" y="170" text-anchor="middle" class="zh">扇出为视图</text>
+  <text x="1295" y="186" text-anchor="middle" class="en">trigger/audit 各自重算</text>
+
+  <rect x="580" y="260" width="240" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="700" y="280" text-anchor="middle" class="zh">旁路 · 非 hook 通道</text>
+  <text x="700" y="296" text-anchor="middle" class="en">hermes/Bash 无写前像 → record-edit / sweep 补账</text>
+
+  <rect x="1000" y="260" width="180" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1090" y="280" text-anchor="middle" class="zh">对账</text>
+  <text x="1090" y="296" text-anchor="middle" class="en">sweep 盘 vs 账 · 10min</text>
+
+  <rect x="1220" y="260" width="150" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1295" y="280" text-anchor="middle" class="zh">回滚 = 不存在</text>
+  <text x="1295" y="296" text-anchor="middle" class="en">deviate 补记 · 链不回写</text>
+
+  <g stroke="#000" fill="none">
+    <line x1="185" y1="177" x2="220" y2="177"/>
+    <line x1="370" y1="177" x2="420" y2="177"/>
+    <line x1="570" y1="177" x2="620" y2="177"/>
+    <line x1="770" y1="177" x2="820" y2="177"/>
+    <line x1="970" y1="177" x2="1020" y2="177"/>
+    <line x1="1170" y1="177" x2="1220" y2="177"/>
+    <line x1="295" y1="150" x2="295" y2="98"/>
+    <line x1="695" y1="204" x2="695" y2="228"/>
+    <line x1="695" y1="228" x2="700" y2="228"/>
+    <line x1="700" y1="228" x2="700" y2="260"/>
+    <line x1="1095" y1="204" x2="1095" y2="260"/>
+    <line x1="1295" y1="204" x2="1295" y2="260"/>
+  </g>
+  <g fill="#000">
+    <polygon points="217,173 217,181 224,177"/>
+    <polygon points="417,173 417,181 424,177"/>
+    <polygon points="617,173 617,181 624,177"/>
+    <polygon points="817,173 817,181 824,177"/>
+    <polygon points="1017,173 1017,181 1024,177"/>
+    <polygon points="1217,173 1217,181 1224,177"/>
+    <polygon points="291,101 299,101 295,94"/>
+    <polygon points="696,257 704,257 700,264"/>
+    <polygon points="1091,257 1099,257 1095,264"/>
+    <polygon points="1291,257 1299,257 1295,264"/>
+  </g>
+</svg>
+
+<h2>三、防伪与重复处理（判定链 + 重复执行时各存储的动作）</h2>
+
+<svg viewBox="0 0 1400 150" width="1400">
+  <ellipse cx="70" cy="75" rx="50" ry="20" fill="#fff" stroke="#000"/>
+  <text x="70" y="79" text-anchor="middle" class="zh">一条记录</text>
+  <rect x="160" y="48" width="180" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="250" y="70" text-anchor="middle" class="zh">seq = 尾 + 1？</text>
+  <text x="250" y="86" text-anchor="middle" class="mono">主键 = 链序号</text>
+  <rect x="390" y="48" width="180" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="480" y="70" text-anchor="middle" class="zh">prev = 上条 self？</text>
+  <text x="480" y="86" text-anchor="middle" class="en">断一点即整链不可信</text>
+  <rect x="620" y="48" width="200" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="720" y="70" text-anchor="middle" class="zh">重算 self 一致？</text>
+  <text x="720" y="86" text-anchor="middle" class="en">内容被改一个字节即变</text>
+  <rect x="870" y="48" width="240" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="990" y="70" text-anchor="middle" class="zh">锚单调？</text>
+  <text x="990" y="86" text-anchor="en en">checkpoint 不许后退 / 不许同 seq 换 hash</text>
+  <rect x="1160" y="48" width="200" height="54" rx="6" fill="#fff" stroke="#000"/>
+  <text x="1260" y="66" text-anchor="middle" class="zh">任一失败</text>
+  <text x="1260" y="82" text-anchor="middle" class="en">C1/C1b FAULT · 永不静默</text>
+  <g stroke="#000" fill="none">
+    <line x1="120" y1="75" x2="160" y2="75"/><line x1="340" y1="75" x2="390" y2="75"/>
+    <line x1="570" y1="75" x2="620" y2="75"/><line x1="820" y1="75" x2="870" y2="75"/>
+    <line x1="1110" y1="75" x2="1160" y2="75"/>
+  </g>
+  <g fill="#000">
+    <polygon points="157,71 157,79 164,75"/><polygon points="387,71 387,79 394,75"/>
+    <polygon points="617,71 617,79 624,75"/><polygon points="867,71 867,79 874,75"/>
+    <polygon points="1157,71 1157,79 1164,75"/>
+  </g>
+</svg>
+
+<table>
+  <tr><th>存储/组件</th><th>主键与守卫</th><th>重复执行同一条时</th></tr>
+  <tr><td>events.jsonl</td><td>seq + prev + self 三重</td><td>拒绝：重放=断链；事后改=重算不一致</td></tr>
+  <tr><td>checkpoint.json</td><td>单调门（seq 只进不退，同 seq 不许换 hash）</td><td>锚不动；幻影锚（写了个不存在的 seq）由 append 真实成功后用尾部覆盖</td></tr>
+  <tr><td>sweep 巡逻</td><td>already-observed guard + settle 双读</td><td>同一磁盘事实只记一次（O5-02 修复：落账前逐文件对尾部做新鲜复读）</td></tr>
+  <tr><td>trigger 队列</td><td>无状态重放</td><td>重复显示是设计（永久长鸣）；去重只发生在人/教练的阅读端</td></tr>
+  <tr><td>record-edit 补账</td><td>no-op 守卫（盘==已记即拒）</td><td>拒绝：不许造无新信息的记录</td></tr>
+  <tr><td>sign-gate 签字</td><td>控制字符拒收 + 拒完全重复的旧理由</td><td>拒绝：同文案≠新决定</td></tr>
+</table>
+
+<h2>四、真实事件走查（三笔今日流水）</h2>
+
+<h3 style="font-size:13px">流水 A · 检测器之死（trigger 上线即死 103 分钟）</h3>
+<table>
+  <tr><th>时刻</th><th>触发</th><th>系统做了什么</th><th>账的变化</th></tr>
+  <tr><td>08:16:25</td><td>我部署 T14 代码</td><td>trigger 遇无 products 的历史翻转即崩（StrictMode 空数组拆箱）</td><td>—（它无声）</td></tr>
+  <tr><td>08:20</td><td>我跑 canary</td><td>11/11 FIRED —— 夹具全带 products，盲区未覆盖</td><td>—</td></tr>
+  <tr><td>08:58–09:59</td><td>4.1→5.3 连续作业</td><td>5 次跨边界写、口头补丁落账，全部零告警</td><td>events 正常追加（链不知道检测器死了）</td></tr>
+  <tr><td>09:59:46</td><td>观测员 #6 回报</td><td>14 次复现 · 定行 L241</td><td>report.md 15 条编号缺陷</td></tr>
+  <tr><td>10:07–10:14</td><td>修复+加固</td><td>语句形拆雷 ×6 · canary 加「历史翻转」+「死=DEAD」元断言</td><td>canary 14/14 · 队列复活吐 24 条</td></tr>
+</table>
+
+<h3 style="font-size:13px">流水 B · 毁损签字的一生（NUL gate）</h3>
+<table>
+  <tr><th>时刻</th><th>触发</th><th>系统做了什么</th><th>账的变化</th></tr>
+  <tr><td>00:43:25 / 01:56:40</td><td>人在控制台签 4.1 / 5.3</td><td>终端层毁中文，理由以 60% NUL 落账</td><td>847、957 进链，verify-ledger 全 [OK]</td></tr>
+  <tr><td>11:10</td><td>重签尝试（交互粘贴）</td><td>第三次毁损 · 控制字符闸门拦下，未落账</td><td>—（防线在落账前）</td></tr>
+  <tr><td>11:20</td><td>-WhyFile 通道</td><td>UTF-8 文件 → 无损</td><td>1036(5.3)、1037(4.1) ctrl=0</td></tr>
+  <tr><td>11:2x</td><td>audit C12</td><td>fault→warn（后续合法签字构成补救）</td><td>847/957 永久留在链里作为历史警告</td></tr>
+</table>
+
+<h3 style="font-size:13px">流水 C · 幻影锚（推进了不存在的记录）</h3>
+<table>
+  <tr><th>时刻</th><th>触发</th><th>系统做了什么</th><th>账的变化</th></tr>
+  <tr><td>09:40:22</td><td>hook append 写失败</td><td>锚却移到 944/8372c255（该行从未存在）</td><td>checkpoint 与账本分叉</td></tr>
+  <tr><td>09:41:13</td><td>Claude 自纠</td><td>全库第一条 deviate 自述（C3 由 7/11→8/11）</td><td>seq 被如实复用</td></tr>
+  <tr><td>09:59:22</td><td>再犯</td><td>锚→959/0f29b076 · 幻影 · 观测员抓到</td><td>audit C1 建议 restore 老 bak（会截掉 174 条）</td></tr>
+  <tr><td>10:0x</td><td>修复 post-tool</td><td>只认返回值 · 回读真尾部 · 单调门 · history 副本 · C1 文案禁盲 restore</td><td>1058 MATCH · checkpoint.history.jsonl 生产中</td></tr>
+</table>
+
+<h2>五、自洽审计 · 矛盾清单</h2>
+
+<pre style="font-size:11.5px; font-family:inherit;">
+【冲突 1】逻辑冲突 / 高
+冲突点：同一不变量两个出口打架——audit C1 已改为「幻影锚禁止盲目 restore bak」，但 trigger 的 T1 队列文案仍写着「restore from events.jsonl.bak-*」。
+为什么会被问：教练/人按 T1 文案执行 = 把 1058 条账截回昨天；两个官方口径不一致本身就是审计事故（今天真实发生过同型：教练交接词推荐了已被证实毁损的交互通道）。
+建议处置：改设计——trigger T1 复用 C1 的 history 诊断文案，单一出口（代价：一次部署+重封锚，10 分钟）。
+
+【冲突 2】逻辑冲突 / 高 ——【已处置 11-09 下午】
+冲突点：图上「PreToolUse 快照」声称覆盖写前图像，实际 matcher 仅 Edit/Write/MultiEdit；hermes 与 Bash 通道无图像——52 条 tool_use 有 file 无 before，runtime.yaml 旧字节已永久丢失（O5-06）。
+处置：pre-tool 接 Bash（matcher 已加）——每次 Bash 前全项目源文件 manifest + 边界间 diff 入 .harness/local/prebash-diff.jsonl（259 文件 170ms 实测）；verify 加 universe_changed（判决期间动过的 undeclared 文件入账，T15 点名）。仍盲：hermes 自有工具链（只有轮询）、内存 monkeypatch。历史损失（86440bac）不可逆，此句永久保留。
+
+【冲突 3】数据冲突 / 中 ——【部分处置 11-09 下午】
+冲突点：T14 防「考卷变动」，但若判卷器本身是产物，「写了判卷器」＝「产物动了」→ 该类步骤 T14 永久失效；真实账上它至今 0 投递。
+处置：拆出 T14b_exam_only（FAIL→PASS 且判决窗口内唯一移动的产物是判卷器 = 点名，不再豁免）+ T15_universe_moved（世界移动最小盘模型）。仍豁免：products 字段上线前的历史翻转（append-only 构造限制）；内存 monkeypatch 不在盘像模型内——hermetic verify 条款仍待教练立项。
+
+【冲突 1】逻辑冲突 / 高 ——【撤案：误报】
+原指控：trigger T1 队列仍写「restore from bak」而 audit C1 已修。核实：trigger 只是忠实重放 seq 940 时代 deviate 记录的历史原文（alternatives 字段内容）——视图不该改写历史。真修复只有 C1 文案本身（已完成）。教训入 CASEBOOK：审计别人的文案前，先分清「生成的建议」和「重放的记录」。
+
+【冲突 4】职责冲突 / 中 ——【已处置 v2.3.10】
+处置：教练卡 v2.3.10 —— 复制纪律：转发给 agent 的一切（四层指令/交接提示词/命令）整块可粘贴；gate 理由不可粘贴，人写 UTF-8 文件走 -WhyFile（签字必须经过人的手和眼）。
+
+【冲突 4】职责冲突 / 中
+冲突点：教练卡、人、我三方都当过「签字通道的权威口径」，但通道事实只有一份——v2.3.8 的交接词仍教交互粘贴，与 harness 的实测结论（三次毁损）相反。
+为什么会被问：流水线里「谁的说明书是最新的」没有机制保证——PROMPT 版本检查管住了 agent 侧，没管住「人转述的操作指引」。
+建议处置：改设计——v2.3.9 交接词固定写 -WhyFile；并把「教练文案里的命令必须在 harness 里真实存在且走通」做成教练自检条目。
+
+【冲突 5】悬空组件 / 低
+冲突点：real_test 判定只对新证据生效，历史 18 条 trivial=true 无从改判——视图里「有证据的步骤」对它仍是一半信任。
+为什么会被问：「1.1–1.4 的 done_without_evidence 警告是不是就是它？」——是，且账本原则（append-only）决定了不能修，只能带着警告收口。
+建议处置：备话术——保留警告并说明「毁证不可追溯，前向从严」正是 append-only 的代价，属有意取舍非遗漏。
+
+时序检查：系统组件 PowerShell 7 / Node hooks / JSONL 链均早于项目起点（2026-11），余量充足，无时序冲突。
+</pre>
+
+</body>
+</html>

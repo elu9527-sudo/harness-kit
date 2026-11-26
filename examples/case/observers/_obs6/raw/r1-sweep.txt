@@ -1,0 +1,2 @@
+[sweep] 48 files covered, disk matches ledger
+

@@ -1,0 +1,69 @@
+warning: in the working copy of 'docs\_snap\4.1\scripts__check_interface_impl.py.before', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'scripts\check_interface_impl.py', LF will be replaced by CRLF the next time Git touches it
+diff --git "a/docs\\_snap\\4.1\\scripts__check_interface_impl.py.before" "b/scripts\\check_interface_impl.py"
+index 397c598..7c8d47b 100644
+--- "a/docs\\_snap\\4.1\\scripts__check_interface_impl.py.before"
++++ "b/scripts\\check_interface_impl.py"
+@@ -323,2 +323,6 @@ def check_a(contract_surface: dict[str, dict[str, object]], impl_surface: dict[s
+     exempt_impls = tuple(IP_PROVIDER_ANCHOR["impl_classes"])  # type: ignore[arg-type]
++    # ---- 4.1 追加（上面那行原样不动）：A2 放行名单 = IP 锚点 ∪ 账号池锚点的 impl_classes ----
++    exempt_impls = tuple(dict.fromkeys(
++        exempt_impls + tuple(ACCOUNT_POOL_ANCHOR["impl_classes"])  # type: ignore[arg-type]
++    ))
+     for name in sorted(impl_names):
+@@ -434,2 +438,50 @@ def check_c(impl_surface: dict[str, object]) -> None:
+ 
++# ---------------------------------------------------------------------------
++# 4.1 追加（本轮只加这一段 + main() 里那一句调用；CONTRACT_SCOPE / exempt_names /
++# exempt_params / exempt_methods / 检查项 C / 上面引用的行号一律未动）
++#
++# 账号池锚点的依据：contracts/account_pool_interface.py
++#   L5      「实现放在 price_watch/pool/ 下（account_pool.py：选号 / 原子占号 / 冷却 / 日限额）」
++#   L34     class AccountPool(ABC)
++#   L38/L46/L56 三个抽象方法签名 —— 实现侧要求**逐字一致**，故这里一条豁免都不给：
++#   下面每个键都取空集合，check_b 照旧逐参数比名字/顺序/有无默认值/默认值，
++#   实现类多出一个公开方法同样判红。这是「只登记实现类、不登记豁免」的锚点。
++# ACCOUNT_POOL_ANCHOR 的字面内容按教练本轮授权只有 impl_classes 一项；
++# 另外五个空键不是新增豁免，是让 check_b 的 apply_anchor() 能读这份锚点所必需的形状
++# （它按 anchor["exempt_params"] / anchor["param_renames"] 直接取键），空值 = 零放宽。
++# ---------------------------------------------------------------------------
++ACCOUNT_POOL_ANCHOR: dict[str, object] = {
++    "impl_classes": ("SqliteAccountPool",),
++    "exempt_methods": (),
++    "exempt_params": {},
++    "param_renames": {},
++    "extra_methods": (),
++    "exempt_names": (),
++}
++ANCHOR_BASIS_ACCOUNT_POOL = "contracts/account_pool_interface.py L5 / L34-L58"
++
++# 把这份锚点挂进接口名表（同样是一行追加，不改上面 ANCHORED_INTERFACES 的字面量），
++# 否则 AccountPool 在 check_b 眼里仍是"active 却无主接口"，照旧判红。
++ANCHORED_INTERFACES["AccountPool"] = ACCOUNT_POOL_ANCHOR
++
++
++def check_account_pool_subclass(contract_surface: dict[str, dict[str, object]],
++                                impl_surface: dict[str, object]) -> None:
++    """4.1 新增断言：SqliteAccountPool 必须真的继承 contracts.account_pool_interface.AccountPool。
++
++    签名一致但没继承也算红 —— 那样 ABC 的抽象约束、将来的 isinstance 判定、
++    以及「契约换实现不改调用方」这条预留位就全是空的。
++    """
++    contract_cls = (contract_surface.get("contracts.account_pool_interface") or {}).get("AccountPool")
++    impl_cls = impl_surface.get("SqliteAccountPool")
++    if not inspect.isclass(contract_cls):
++        emit(False, "D", "契约类 AccountPool 没取到，无法断言继承关系（contracts/account_pool_interface.py）")
++    elif impl_cls is None:
++        emit(False, "D", f"{IMPL_PACKAGE} 未导出 SqliteAccountPool，无法断言它继承 {contract_cls.__name__}")
++    else:
++        emit(issubclass(impl_cls, contract_cls), "D",
++             f"SqliteAccountPool issubclass AccountPool = {issubclass(impl_cls, contract_cls)}"
++             f"（{ANCHOR_BASIS_ACCOUNT_POOL}）")
++
++
+ def main() -> int:
+@@ -444,2 +496,3 @@ def main() -> int:
+     check_c(impl_surface)
++    check_account_pool_subclass(contract_surface, impl_surface)   # 4.1 追加的那条断言
+ 
+

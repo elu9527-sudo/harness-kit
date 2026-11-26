@@ -1,0 +1,7 @@
+name: coach
+version: 1.0.0
+description: "Vibe Coding 教练：读自由、写沙箱、签字/落账命令平台硬拒的纯顾问档案。配 Claude Code 编码 agent 构成双 agent 拓扑。"
+author: "YG harness"
+license: "MIT"
+env_requires: []
+note: "模型 key 填 config.yaml providers.*.api_key；池=阿里百炼 token-plan（deepseek-v4-pro / qwen3.8-max / glm-5.3 可选）"
